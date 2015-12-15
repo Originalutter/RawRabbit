@@ -7,6 +7,6 @@ namespace RawRabbit.Extensions.Saga.Builders.Abstractions
 	{
 		IPassiveSagaBuilder<TMessageContext> Recieve<TMessage>(Action<TMessage, TMessageContext> whenFunc, Action<IMandatoryStepConfigurationBuilder<TMessage, TMessageContext>> config = null);
 		IPassiveSagaBuilder<TMessageContext> RecieveAsync<TMessage>(Func<TMessage, TMessageContext, Task> whenFunc, Action<IMandatoryStepConfigurationBuilder<TMessage, TMessageContext>> config = null);
-		IActiveSagaBuilder<TMessageContext> SendAsync<TMessage>(TMessage message);
+		IActiveSagaBuilder<TMessageContext> PublishAsync<TMessage>(TMessage message);
 	}
 }

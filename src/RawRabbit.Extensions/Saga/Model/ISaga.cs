@@ -1,9 +1,11 @@
-using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
 
 namespace RawRabbit.Extensions.Saga.Model
 {
-	public interface ISaga<TMessage>
+	public interface ISaga
 	{
-		Task<TMessage> SagaTask { get; }
+		Guid GlobalMessageId { get; }
+		IList<SagaStep> Steps { get; } 
 	}
 }

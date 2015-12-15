@@ -2,7 +2,9 @@
 using System.Threading.Tasks;
 using RawRabbit.Context;
 using RawRabbit.Extensions.Client;
+using RawRabbit.Extensions.Saga.Builders;
 using RawRabbit.Extensions.Saga.Builders.Abstractions;
+using RawRabbit.Extensions.Saga.Model;
 
 namespace RawRabbit.Extensions.Saga
 {
@@ -14,55 +16,25 @@ namespace RawRabbit.Extensions.Saga
 			var extended = (busClient as ExtendableBusClient<TMessageContext>);
 			if (extended == null)
 			{
-				throw new InvalidOperationException("SagaExtension is only availbable for ExtendableBusClient.");
+				throw new InvalidOperationException("Sagas are only availbable for ExtendableBusClient.");
 			}
-		}
-	}
 
-	public class Foo
-	{
-		private void DoStuff()
+			var sagaInitializer = new SagaInitializer<TMessageContext>(extended);
+			initializer(sagaInitializer);
+		}
+
+		public static IActiveSaga<TLastMessage> CreateSaga<TMessageContext, TLastMessage>(this IBusClient<TMessageContext> busClient, Func<ISagaInitializer<TMessageContext>, IActiveSaga<TLastMessage>> initializer)
+			where TMessageContext : IMessageContext
 		{
-			var client = RawRabbitFactory.GetExtendableClient() as ExtendableBusClient<MessageContext>;
-			client.CreateSaga(saga => saga
-				.Recieve<FirstMessage>((message, context) =>
-					{
-						//sone matching stuff
-					}, cfg => cfg.Matching((message, context) => true))
-				.WhenAsync<SecondMessage>((message, context) =>
-					{
-						// some stuff
-						return Task.FromResult(true);
-					}, cfg => cfg
-						.Matching((message, context) =>
-							{
-								return true;
-							})
-						.Until((message, context) =>
-							{
-								return true;
-							})
-						.IsOptional()
-						)
-			);
-			client.CreateSaga(cfg => cfg
-				.SendAsync(new FirstMessage
-					{
-						Prop = "Value"
-					})
-				.WhenAsync<SecondMessage>((message, context) =>
-					{
-						// do stuff..
-						return Task.FromResult(true);
-					})
-				.Complete<ThirdMessage>()
-			);
+			var extended = (busClient as ExtendableBusClient<TMessageContext>);
+			if (extended == null)
+			{
+				throw new InvalidOperationException("Sagas are only availbable for ExtendableBusClient.");
+			}
+
+			var sagaInitializer = new SagaInitializer<TMessageContext>(extended);
+			var saga = initializer(sagaInitializer);
+			return saga;
 		}
 	}
-
-	public class FirstMessage {
-		public string Prop { get; set; }
-	}
-	public class SecondMessage { }
-	public class ThirdMessage { }
 }

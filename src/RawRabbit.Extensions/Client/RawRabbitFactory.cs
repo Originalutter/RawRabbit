@@ -1,6 +1,8 @@
 ﻿using System;
 using Microsoft.Extensions.DependencyInjection;
 using RawRabbit.Context;
+using RawRabbit.Extensions.Saga.Repository;
+using RawRabbit.Extensions.Saga.Repository.Abstractions;
 using RawRabbit.vNext;
 
 namespace RawRabbit.Extensions.Client
@@ -11,7 +13,8 @@ namespace RawRabbit.Extensions.Client
 		{
 			var provider = new ServiceCollection()
 				.AddRawRabbit(null, custom)
-				.BuildServiceProvider();
+				.AddSingleton<ISagaRepository, OpertunisticSagaRepository>()
+				.BuildServiceProvider();	
 			return new ExtendableBusClient(provider);
 		}
 	}
