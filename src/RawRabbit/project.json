@@ -15,14 +15,7 @@
 		"test": "xunit.runner.dnx"
 	},
 	"frameworks": {
-		"dnx45": { },
-		"dnx451": { },
-		"dnx50": { },
-		"net45": { },
-		"net451": { },
-		"net452": { },
-		"net46": { },
-		"net50": { }
+		"dnx451": { }
 	},
 
 	"publishExclude": [

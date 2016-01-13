@@ -16,12 +16,7 @@
 	},
 
 	"frameworks": {
-		"dnx451": { },
-		"dnx50": { },
-		"net451": { },
-		"net452": { },
-		"net46": { },
-		"net50": { }
+		"dnx451": { }
 	},
 
 	"publishExclude": [
