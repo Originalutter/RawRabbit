@@ -30,10 +30,17 @@ namespace RawRabbit.Extensions.Saga.Builders
 			return WhenBase(whenAction, config) as IActiveSagaBuilder<TMessageContext>;
 		}
 
-		public IActiveSaga<TMessage> Complete<TMessage>(Action<IMandatoryStepConfigurationBuilder<TMessage, TMessageContext>> matching = null)
+		public IActiveSaga<TMessage> Complete<TMessage>(Action<IStepConfigurationBuilder<TMessage, TMessageContext>> config = null)
 		{
+			var cfg = StepConfigurationBuilder<TMessage, TMessageContext>.GetConfiguration(config);
+			if (cfg.Optional)
+			{
+				throw new ArgumentException("The 'Complete' Message can not be optional.");
+			}
+			cfg.IsCompleteMessage = true;
 			var sagaTcs = new TaskCompletionSource<TMessage>();
-			BusClient.SubscribeAsync<TMessage>(async (message, context) =>
+		
+			WhenAsyncBase(async (message, context) =>
 			{
 				if (context.GlobalRequestId != _globalMessageId)
 				{
@@ -44,7 +51,7 @@ namespace RawRabbit.Extensions.Saga.Builders
 				{
 					sagaTcs.TrySetResult(message);
 				}
-			}, cfg => cfg.WithSubscriberId("saga"));
+			}, cfg);
 
 			var sagaTask =  SagaRepo
 				.CreateAsync(_globalMessageId)

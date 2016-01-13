@@ -24,6 +24,7 @@ namespace RawRabbit.Extensions.Saga.Repository
 			{
 				MessageType = typeof(TMessage),
 				Optional = config.Optional,
+				IsCompleteMessage = config.IsCompleteMessage
 			};
 			var handler = new MessageHandler<TMessage, TMessageContext>
 			{
@@ -38,7 +39,8 @@ namespace RawRabbit.Extensions.Saga.Repository
 			var metadata = new HandlerMetadata
 			{
 				MessageType = typeof(TMessage),
-				Optional = config.Optional
+				Optional = config.Optional,
+				IsCompleteMessage = config.IsCompleteMessage
 			};
 			var handler = new MessageHandler<TMessage, TMessageContext>
 			{
@@ -107,7 +109,7 @@ namespace RawRabbit.Extensions.Saga.Repository
 				return false;
 			}
 			var mandatorySteps = _handlerDictionary.Keys
-				.Where(k => !k.Optional)
+				.Where(k => !k.Optional && !k.IsCompleteMessage)
 				.ToList();
 
 			//TODO: trim this algo, plz
@@ -118,6 +120,7 @@ namespace RawRabbit.Extensions.Saga.Repository
 		{
 			public Type MessageType { get; set; }
 			public bool Optional { get; set; }
+			public bool IsCompleteMessage { get; set; }
 		}
 		
 		private class MessageHandler<TMessage, TMessageContext>

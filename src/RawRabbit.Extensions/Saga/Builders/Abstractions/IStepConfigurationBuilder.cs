@@ -19,14 +19,16 @@ namespace RawRabbit.Extensions.Saga.Builders.Abstractions
 		public Func<TMessage, TMessageContext, bool> UntilFunc { get; set; }
 		public Func<TMessage, TMessageContext, Task<bool>> UntilAsyncFunc { get; set; }
 		public bool Optional { get; set; }
+		public bool IsCompleteMessage { get; set; }
 
 		public static StepConfiguration<TMessage, TMessageContext> Default => new StepConfiguration<TMessage, TMessageContext>
 		{
 			Optional = false,
+			IsCompleteMessage = false,
 			MatchesPredicateAsync = (message, context) => Task.FromResult(true),
 			MatchesPredicate = (message, context) => true,
 			UntilAsyncFunc = (message, context) => Task.FromResult(false),
 			UntilFunc = (message, context) => false
-		}; 
+		};
 	}
 }

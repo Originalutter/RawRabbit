@@ -132,6 +132,15 @@ namespace RawRabbit.IntegrationTests.Extensions
 				/* Assert */
 				Assert.Equal(saga.SagaTask.Result.IsSimple, simpleMessage.IsSimple);
 			}
+
+			[Fact]
+			public async Task Should_Throw_Exception_If_The_Complete_Message_Is_Marked_As_Optional()
+			{
+				var client = RawRabbitFactory.GetExtendableClient();
+				Assert.Throws<ArgumentException>(() => client.CreateSaga(saga => saga
+					.PublishAsync(new BasicMessage())
+					.Complete<SimpleMessage>(cfg => cfg.IsOptional())));
+			}
 		}
 	}
 }
