@@ -12,7 +12,7 @@ namespace RawRabbit.Common
 	public class ChannelFactory : IChannelFactory
 	{
 		private readonly IConnectionFactory _connectionFactory;
-		private ThreadLocal<IModel> _threadChannels; 
+		private ThreadLocal<IModel> _threadChannels;
 		private IConnection _connection;
 		private readonly ILogger _logger = LogManager.GetLogger<ChannelFactory>();
 		private readonly RawRabbitConfiguration _config;
@@ -20,7 +20,7 @@ namespace RawRabbit.Common
 		public ChannelFactory(RawRabbitConfiguration config, IConnectionFactory connectionFactory, IClientPropertyProvider propsProvider)
 		{
 			_connectionFactory = connectionFactory;
-			
+
 			_config = config;
 			_threadChannels = new ThreadLocal<IModel>(true);
 
