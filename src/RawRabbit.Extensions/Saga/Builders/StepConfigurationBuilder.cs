@@ -6,6 +6,13 @@ namespace RawRabbit.Extensions.Saga.Builders
 {
 	public class StepConfigurationBuilder<TMessage, TMessageContext> : IStepConfigurationBuilder<TMessage, TMessageContext>, IMandatoryStepConfigurationBuilder<TMessage, TMessageContext>
 	{
+		public StepConfiguration<TMessage, TMessageContext> Configuration { get; set; }
+
+		public StepConfigurationBuilder()
+		{
+			Configuration =	StepConfiguration<TMessage, TMessageContext>.Default;
+		}
+
 		public static StepConfiguration<TMessage, TMessageContext> GetConfiguration(
 			Action<IStepConfigurationBuilder<TMessage, TMessageContext>> action)
 		{
@@ -29,8 +36,6 @@ namespace RawRabbit.Extensions.Saga.Builders
 			action(builder);
 			return builder.Configuration;
 		}
-
-		public StepConfiguration<TMessage, TMessageContext> Configuration { get; set; }
 
 		public IStepConfigurationBuilder<TMessage, TMessageContext> Matching(Func<TMessage, TMessageContext, bool> predicate)
 		{
