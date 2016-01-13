@@ -11,11 +11,11 @@ namespace RawRabbit.Extensions.Saga.Repository
 {
 	public class MessageHandlerRepository : IMessageHandlerRepository
 	{
-		private readonly ConcurrentDictionary<HandlerMetadata, object> _handlerDictionary;
+		private readonly Dictionary<HandlerMetadata, object> _handlerDictionary;
 
 		public MessageHandlerRepository()
 		{
-			_handlerDictionary = new ConcurrentDictionary<HandlerMetadata, object>();
+			_handlerDictionary = new Dictionary<HandlerMetadata, object>();
 		}
 
 		public void Add<TMessage, TMessageContext>(Action<TMessage, TMessageContext> whenAction, StepConfiguration<TMessage, TMessageContext> config)
@@ -31,7 +31,7 @@ namespace RawRabbit.Extensions.Saga.Repository
 				Configuration = config,
 				SyncHandler = whenAction
 			};
-			_handlerDictionary.GetOrAdd(metadata, handler);
+			_handlerDictionary.Add(metadata, handler);
 		}
 
 		public void Add<TMessage, TMessageContext>(Func<TMessage, TMessageContext, Task> whenAction, StepConfiguration<TMessage, TMessageContext> config)
@@ -47,17 +47,18 @@ namespace RawRabbit.Extensions.Saga.Repository
 				Configuration = config,
 				AsyncHandler = whenAction
 			};
-			_handlerDictionary.GetOrAdd(metadata, handler);
+			_handlerDictionary.Add(metadata, handler);
 		}
 
 		public bool TryExecute<TMessage, TMessageContext>(TMessage message, TMessageContext context, ISaga saga)
 		{
-			var nextStep = new List<HandlerMetadata> { _handlerDictionary.Keys.Skip(saga.Steps.Count).FirstOrDefault() };
-			var optionals = _handlerDictionary.Keys.Skip(saga.Steps.Count);
-			optionals = optionals.Where(s => s.Optional);
-			var potentialSteps = nextStep.Concat(optionals);
-			potentialSteps = potentialSteps.Distinct();
-			
+			var potentialSteps = Enumerable
+				.Empty<HandlerMetadata>()
+				.Concat(new[] {_handlerDictionary.Keys.Skip(saga.Steps.Count).FirstOrDefault(s => !s.Optional)})
+				.Concat(_handlerDictionary.Keys.Skip(saga.Steps.Count).Where(s => s.Optional))
+				.Where(h => h != null)
+				.Distinct();
+							
 			var metadata = potentialSteps.FirstOrDefault(m => m.MessageType == typeof(TMessage));
 			if (metadata == null)
 			{
@@ -89,7 +90,7 @@ namespace RawRabbit.Extensions.Saga.Repository
 
 			var completedAsync = await handler.Configuration.UntilAsyncFunc(message, context);
 			var completedSync = handler.Configuration.UntilFunc(message, context);
-			if (completedSync || completedAsync)
+			if (completedSync && completedAsync)
 			{
 				return true;
 			}

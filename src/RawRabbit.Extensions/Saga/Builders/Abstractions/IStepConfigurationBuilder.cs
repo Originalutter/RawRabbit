@@ -27,8 +27,8 @@ namespace RawRabbit.Extensions.Saga.Builders.Abstractions
 			IsCompleteMessage = false,
 			MatchesPredicateAsync = (message, context) => Task.FromResult(true),
 			MatchesPredicate = (message, context) => true,
-			UntilAsyncFunc = (message, context) => Task.FromResult(false),
-			UntilFunc = (message, context) => false
+			UntilAsyncFunc = (message, context) => Task.FromResult(true),
+			UntilFunc = (message, context) => true
 		};
 	}
 }

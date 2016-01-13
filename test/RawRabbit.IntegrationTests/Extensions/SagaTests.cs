@@ -141,6 +141,130 @@ namespace RawRabbit.IntegrationTests.Extensions
 					.PublishAsync(new BasicMessage())
 					.Complete<SimpleMessage>(cfg => cfg.IsOptional())));
 			}
+
+			[Fact]
+			public async Task Should_Call_Next_Mandatory_Handler()
+			{
+				/* Setup */
+				var subscribe = BusClientFactory.CreateDefault();
+				var client = RawRabbitFactory.GetExtendableClient();
+				var secondTcs = new TaskCompletionSource<bool>();
+				subscribe.SubscribeAsync<FirstMessage>(async (message, context) =>
+				{
+					await subscribe.PublishAsync(new SecondMessage(), context.GlobalRequestId);
+				});
+
+				client.CreateSaga(saga => saga
+					.PublishAsync(new FirstMessage())
+					.WhenAsync<SecondMessage>((message, context) =>
+					{
+						secondTcs.SetResult(true);
+						return Task.FromResult(true);
+					})
+					.WhenAsync<ThirdMessage>((message, context) => Task.FromResult(true))
+					.Complete<ForthMessage>()
+				);
+
+				/* Test */
+				await secondTcs.Task;
+
+				/* Assert */
+				Assert.True(secondTcs.Task.Result);
+			}
+
+			[Fact]
+			public async Task Should_Not_Call_Handler_Until_All_Mandatory_Handlers_Have_Been_Called()
+			{
+				/* Setup */
+				var subscribe = BusClientFactory.CreateDefault();
+				var client = RawRabbitFactory.GetExtendableClient();
+				var thirdTcs = new TaskCompletionSource<bool>();
+				subscribe.SubscribeAsync<FirstMessage>(async (message, context) =>
+				{
+					await subscribe.PublishAsync(new ThirdMessage(), context.GlobalRequestId);
+				});
+
+				client.CreateSaga(saga => saga
+					.PublishAsync(new FirstMessage())
+					.WhenAsync<SecondMessage>((message, context) => Task.FromResult(true))
+					.WhenAsync<ThirdMessage>((message, context) =>
+					{
+						thirdTcs.SetResult(true);
+						return Task.FromResult(true);
+					})
+					.Complete<ForthMessage>()
+				);
+
+				/* Test */
+				thirdTcs.Task.Wait(TimeSpan.FromMilliseconds(100));
+
+				/* Assert */
+				Assert.False(thirdTcs.Task.IsCompleted);
+			}
+
+			[Fact]
+			public async Task Should_Call_Handler_If_Previous_Uncalled_Handler_Is_Optional()
+			{
+				/* Setup */
+				var subscribe = BusClientFactory.CreateDefault();
+				var client = RawRabbitFactory.GetExtendableClient();
+				var thirdTcs = new TaskCompletionSource<bool>();
+				subscribe.SubscribeAsync<FirstMessage>(async (message, context) =>
+				{
+					await subscribe.PublishAsync(new ThirdMessage(), context.GlobalRequestId);
+				});
+
+				client.CreateSaga(saga => saga
+					.PublishAsync(new FirstMessage())
+					.WhenAsync<SecondMessage>((message, context) => Task.FromResult(true), cfg => cfg.IsOptional())
+					.WhenAsync<ThirdMessage>((message, context) =>
+					{
+						thirdTcs.SetResult(true);
+						return Task.FromResult(true);
+					})
+					.Complete<ForthMessage>()
+				);
+
+				/* Test */
+				await thirdTcs.Task;
+
+				/* Assert */
+				Assert.True(thirdTcs.Task.IsCompleted);
+			}
+
+			[Fact]
+			public async Task Should_Not_Call_Handler_If_Previous_Until_Predicate_Is_Not_Met()
+			{
+				/* Setup */
+				var subscribe = BusClientFactory.CreateDefault();
+				var client = RawRabbitFactory.GetExtendableClient();
+				var thirdTcs = new TaskCompletionSource<bool>();
+				subscribe.SubscribeAsync<FirstMessage>(async (message, context) =>
+				{
+					await subscribe.PublishAsync(new SecondMessage(), context.GlobalRequestId);
+				});
+				subscribe.SubscribeAsync<SecondMessage>(async (message, context) =>
+				{
+					await subscribe.PublishAsync(new ThirdMessage(), context.GlobalRequestId);
+				});
+
+				client.CreateSaga(saga => saga
+					.PublishAsync(new FirstMessage())
+					.WhenAsync<SecondMessage>((message, context) => Task.FromResult(true), cfg => cfg.Until((message, context) => false))
+					.WhenAsync<ThirdMessage>((message, context) =>
+					{
+						thirdTcs.SetResult(true);
+						return Task.FromResult(true);
+					})
+					.Complete<ForthMessage>()
+				);
+
+				/* Test */
+				thirdTcs.Task.Wait(TimeSpan.FromMilliseconds(100));
+
+				/* Assert */
+				Assert.False(thirdTcs.Task.IsCompleted);
+			}
 		}
 	}
 }
