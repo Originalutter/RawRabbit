@@ -17,7 +17,7 @@ namespace RawRabbit.Extensions.Saga.Builders
 			_busClient = busClient;
 		}
 
-		public IPassiveSagaBuilder<TMessageContext> Recieve<TMessage>(Action<TMessage, TMessageContext> whenFunc, Action<IMandatoryStepConfigurationBuilder<TMessage, TMessageContext>> config = null)
+		public IPassiveSagaBuilder<TMessageContext> Recieve<TMessage>(Action<TMessage, TMessageContext> whenFunc, Action<IStepConfigurationBuilder<TMessage, TMessageContext>> config = null)
 		{
 			var handler = new MessageHandlerRepository();
 			var sagaRepo = _busClient.GetService<ISagaRepository>();
@@ -27,7 +27,7 @@ namespace RawRabbit.Extensions.Saga.Builders
 			return builder;
 		}
 
-		public IPassiveSagaBuilder<TMessageContext> RecieveAsync<TMessage>(Func<TMessage, TMessageContext, Task> whenFunc, Action<IMandatoryStepConfigurationBuilder<TMessage, TMessageContext>> config = null)
+		public IPassiveSagaBuilder<TMessageContext> RecieveAsync<TMessage>(Func<TMessage, TMessageContext, Task> whenFunc, Action<IStepConfigurationBuilder<TMessage, TMessageContext>> config = null)
 		{
 			var handler = new MessageHandlerRepository();
 			var sagaRepo = _busClient.GetService<ISagaRepository>();

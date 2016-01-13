@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
-using RawRabbit.Extensions.Saga.Builders;
 using RawRabbit.Extensions.Saga.Builders.Abstractions;
 using RawRabbit.Extensions.Saga.Model;
 using RawRabbit.Extensions.Saga.Repository.Abstractions;
@@ -11,12 +10,12 @@ namespace RawRabbit.Extensions.Saga.Repository
 {
 	public class MessageHandlerRepository : IMessageHandlerRepository
 	{
-		private readonly ConcurrentDictionary<HandlerMetadata, object> _handlerDictionary; 
+		private readonly ConcurrentDictionary<HandlerMetadata, object> _handlerDictionary;
 
 		public MessageHandlerRepository()
 		{
 			_handlerDictionary = new ConcurrentDictionary<HandlerMetadata, object>();
-		} 
+		}
 
 		public void Add<TMessage, TMessageContext>(Action<TMessage, TMessageContext> whenAction, StepConfiguration<TMessage, TMessageContext> config)
 		{
@@ -25,10 +24,10 @@ namespace RawRabbit.Extensions.Saga.Repository
 				MessageType = typeof(TMessage),
 				Optional = config.Optional,
 			};
-			var handler = new SyncMessageHandler<TMessage, TMessageContext>
+			var handler = new MessageHandler<TMessage, TMessageContext>
 			{
 				Configuration = config,
-				Action = whenAction
+				SyncHandler = whenAction
 			};
 			_handlerDictionary.GetOrAdd(metadata, handler);
 		}
@@ -40,10 +39,10 @@ namespace RawRabbit.Extensions.Saga.Repository
 				MessageType = typeof(TMessage),
 				Optional = config.Optional
 			};
-			var handler = new AsyncMessageHandler<TMessage, TMessageContext>
+			var handler = new MessageHandler<TMessage, TMessageContext>
 			{
 				Configuration = config,
-				Func = whenAction
+				AsyncHandler = whenAction
 			};
 			_handlerDictionary.GetOrAdd(metadata, handler);
 		}
@@ -53,26 +52,20 @@ namespace RawRabbit.Extensions.Saga.Repository
 			var potentialSteps = Enumerable
 				.Empty<HandlerMetadata>()
 				.Concat(_handlerDictionary.Keys.Skip(saga.Steps.Count).Where(s => s.Optional))
-				.Concat(new[] {_handlerDictionary.Keys.Skip(saga.Steps.Count).FirstOrDefault()})
+				.Concat(new[] { _handlerDictionary.Keys.Skip(saga.Steps.Count).FirstOrDefault() })
 				.Where(m => m != null)
 				.Distinct();
 
-			var metadata = potentialSteps.FirstOrDefault(m => m.MessageType == typeof (TMessage));
+			var metadata = potentialSteps.FirstOrDefault(m => m.MessageType == typeof(TMessage));
 			if (metadata == null)
 			{
 				return false;
 			}
 
-			var syncHandler = _handlerDictionary[metadata] as SyncMessageHandler<TMessage, TMessageContext>;
-			if (syncHandler != null)
+			var handler = _handlerDictionary[metadata] as MessageHandler<TMessage, TMessageContext>;
+			if (handler != null)
 			{
-				return TryExecuteSync(syncHandler, message, context);
-			}
-
-			var asyncHandler = _handlerDictionary[metadata] as AsyncMessageHandler<TMessage, TMessageContext>;
-			if (asyncHandler != null)
-			{
-				var handlerTask = TryExecuteAsync(asyncHandler, message, context);
+				var handlerTask = TryExecuteAsync(handler, message, context);
 				Task.WaitAll(handlerTask);
 				return handlerTask.Result;
 			}
@@ -80,38 +73,26 @@ namespace RawRabbit.Extensions.Saga.Repository
 			throw new Exception(); //TODO: figure out good exception.
 		}
 
-		private async Task<bool> TryExecuteAsync<TMessage, TMessageContext>(AsyncMessageHandler<TMessage, TMessageContext> asyncHandler, TMessage message, TMessageContext context)
+		private async Task<bool> TryExecuteAsync<TMessage, TMessageContext>(MessageHandler<TMessage, TMessageContext> handler, TMessage message, TMessageContext context)
 		{
-			if (! (await asyncHandler.Configuration.MatchesPredicateAsync(message, context)))
+			var matchesAsync = await handler.Configuration.MatchesPredicateAsync(message, context);
+			var matchesSync = handler.Configuration.MatchesPredicate(message, context);
+			if (!(matchesSync && matchesAsync))
 			{
 				return false;
 			}
 
-			await asyncHandler.Func(message, context);
+			await handler.AsyncHandler.Invoke(message, context);
+			handler.SyncHandler(message, context);
 
-			if (!(await asyncHandler.Configuration.UntilAsyncFunc(message, context)))
+			var completedAsync = await handler.Configuration.UntilAsyncFunc(message, context);
+			var completedSync = handler.Configuration.UntilFunc(message, context);
+			if (completedSync || completedAsync)
 			{
-				return false;
+				return true;
 			}
 
-			return true;
-		}
-
-		private static bool TryExecuteSync<TMessage, TMessageContext>(SyncMessageHandler<TMessage, TMessageContext> syncHandler, TMessage message, TMessageContext context)
-		{
-			if (!syncHandler.Configuration.MatchesPredicate(message, context))
-			{
-				return false;
-			}
-
-			syncHandler.Action(message, context);
-
-			if (!syncHandler.Configuration.UntilFunc(message, context))
-			{
-				return false;
-			}
-
-			return true;
+			return false;
 		}
 
 		public bool IsRegistered(Type type)
@@ -138,17 +119,18 @@ namespace RawRabbit.Extensions.Saga.Repository
 			public Type MessageType { get; set; }
 			public bool Optional { get; set; }
 		}
-
-		private class SyncMessageHandler<TMessage, TMessageContext>
+		
+		private class MessageHandler<TMessage, TMessageContext>
 		{
 			public StepConfiguration<TMessage, TMessageContext> Configuration { get; set; }
-			public Action<TMessage, TMessageContext> Action { get; set; }
-		}
+			public Action<TMessage, TMessageContext> SyncHandler { get; set; }
+			public Func<TMessage, TMessageContext, Task> AsyncHandler { get; set; }
 
-		private class AsyncMessageHandler<TMessage, TMessageContext>
-		{
-			public StepConfiguration<TMessage, TMessageContext> Configuration { get; set; }
-			public Func<TMessage, TMessageContext, Task> Func { get; set; }
+			public MessageHandler()
+			{
+				SyncHandler = (message, context) => { };
+				AsyncHandler = (message, context) => Task.FromResult(true);
+			}
 		}
 	}
 }
