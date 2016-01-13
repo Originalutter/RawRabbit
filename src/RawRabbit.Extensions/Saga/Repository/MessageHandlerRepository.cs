@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using RawRabbit.Extensions.Saga.Builders.Abstractions;
@@ -49,13 +50,12 @@ namespace RawRabbit.Extensions.Saga.Repository
 
 		public bool TryExecute<TMessage, TMessageContext>(TMessage message, TMessageContext context, ISaga saga)
 		{
-			var potentialSteps = Enumerable
-				.Empty<HandlerMetadata>()
-				.Concat(_handlerDictionary.Keys.Skip(saga.Steps.Count).Where(s => s.Optional))
-				.Concat(new[] { _handlerDictionary.Keys.Skip(saga.Steps.Count).FirstOrDefault() })
-				.Where(m => m != null)
-				.Distinct();
-
+			var nextStep = new List<HandlerMetadata> { _handlerDictionary.Keys.Skip(saga.Steps.Count).FirstOrDefault() };
+			var optionals = _handlerDictionary.Keys.Skip(saga.Steps.Count);
+			optionals = optionals.Where(s => s.Optional);
+			var potentialSteps = nextStep.Concat(optionals);
+			potentialSteps = potentialSteps.Distinct();
+			
 			var metadata = potentialSteps.FirstOrDefault(m => m.MessageType == typeof(TMessage));
 			if (metadata == null)
 			{
