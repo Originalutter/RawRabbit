@@ -7,7 +7,7 @@ using RawRabbit.Extensions.Transaction.Repository;
 
 namespace RawRabbit.Extensions.Transaction
 {
-	public static class SagaExtension
+	public static class TransactionExtension
 	{
 		public static Transaction<TResult> PerformTransaction<TMessageContext, TResult>(
 				this IBusClient<TMessageContext> client,

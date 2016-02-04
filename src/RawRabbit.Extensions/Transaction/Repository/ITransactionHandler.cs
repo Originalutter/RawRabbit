@@ -8,8 +8,8 @@ namespace RawRabbit.Extensions.Transaction.Repository
 	public interface ITransactionHandler
 	{
 		bool IsRegistered<TMessage>();
-		void Register<TMessage, TMessageContext>(Func<TMessage, TMessageContext, Task> func) where TMessageContext : IMessageContext;
-		Task QueueForExecution<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext;
+		void Register<TMessage, TMessageContext>(Func<TMessage, TMessageContext, Task> func, ExecutionOption option) where TMessageContext : IMessageContext;
+		Task QueueForExecutionAsync<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext;
 		TransactionState GetState(Guid globalMessageId);
 	}
 }

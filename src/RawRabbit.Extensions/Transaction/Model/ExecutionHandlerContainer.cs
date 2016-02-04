@@ -7,5 +7,6 @@ namespace RawRabbit.Extensions.Transaction.Model
 		public Type MessageType { get; set; }
 		public bool Optional { get; set; }
 		public object MessageHandler { get; set; }
+		public bool AbortsExecution { get; set; }
 	}
 }

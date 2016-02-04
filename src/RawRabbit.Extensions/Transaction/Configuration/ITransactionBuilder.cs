@@ -13,7 +13,7 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 
 	public interface ITransactionBuilder<TMessageContext> where TMessageContext : IMessageContext
 	{
-		ITransactionBuilder<TMessageContext> When<TMessage>(Func<TMessage, TMessageContext, Task> action);
+		ITransactionBuilder<TMessageContext> When<TMessage>(Func<TMessage, TMessageContext, Task> action, Action<IExecutionOptionBuilder> options = null);
 		Transaction<TMessage> Complete<TMessage>(Func<TMessage, TMessageContext, Task> func = null);
 	}
 }

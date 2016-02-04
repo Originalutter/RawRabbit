@@ -46,9 +46,12 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 			return this;
 		}
 
-		public ITransactionBuilder<TMessageContext> When<TMessage>(Func<TMessage, TMessageContext, Task> func)
+		public ITransactionBuilder<TMessageContext> When<TMessage>(Func<TMessage, TMessageContext, Task> func, Action<IExecutionOptionBuilder> options = null)
 		{
-			WireUpMessageHandler(func);
+			var builder = new ExecutionOptionBuilder();
+			options?.Invoke(builder);
+
+			WireUpMessageHandler(func, builder.Option);
 			return this;
 		}
 
@@ -60,7 +63,7 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 			}
 
 			var msgTsc = new TaskCompletionSource<TMessage>();
-			WireUpMessageHandler(func, (message, context) =>
+			WireUpMessageHandler(func, new ExecutionOption(), (message, context) =>
 			{
 				msgTsc.TrySetResult(message);
 				using (var channel = _client.GetService<IChannelFactory>().CreateChannel())
@@ -80,7 +83,7 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 			};
 		}
 
-		protected void WireUpMessageHandler<TMessage>(Func<TMessage, TMessageContext, Task> userFunc, Func<TMessage, TMessageContext, Task> extraFunc = null)
+		protected void WireUpMessageHandler<TMessage>(Func<TMessage, TMessageContext, Task> userFunc, ExecutionOption option, Func<TMessage, TMessageContext, Task> extraFunc = null)
 		{
 			if (!_transactionHandler.IsRegistered<TMessage>())
 			{
@@ -92,8 +95,15 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 					}
 
 					return _transactionHandler
-						.QueueForExecution(msg, ctx)
-						.ContinueWith(t => extraFunc?.Invoke(msg, ctx) ?? _completed);
+						.QueueForExecutionAsync(msg, ctx)
+						.ContinueWith(t =>
+						{
+							if (t.IsFaulted)
+							{
+								return _completed;
+							}
+							return extraFunc?.Invoke(msg, ctx) ?? _completed;
+						});
 
 				}, _transactionConfig);
 				_transactionQueues.Add(_configEvaluator.GetConfiguration<TMessage>(_transactionConfig).Queue.FullQueueName);
@@ -101,7 +111,7 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 			
 			if (userFunc != null)
 			{
-				_transactionHandler.Register(userFunc);
+				_transactionHandler.Register(userFunc, option);
 			}
 		}
 	}

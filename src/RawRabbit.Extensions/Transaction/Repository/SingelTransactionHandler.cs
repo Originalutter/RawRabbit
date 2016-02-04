@@ -33,17 +33,18 @@ namespace RawRabbit.Extensions.Transaction.Repository
 			return _state;
 		}
 
-		public void Register<TMessage, TMessageContext>(Func<TMessage, TMessageContext, Task> func) where TMessageContext : IMessageContext
+		public void Register<TMessage, TMessageContext>(Func<TMessage, TMessageContext, Task> func, ExecutionOption option) where TMessageContext : IMessageContext
 		{
 			_handlers.Add(new ExecutionHandlerContainer 
 			{
-				Optional = false,
+				Optional = option.Optional,
+				AbortsExecution = option.AbortsExecution,
 				MessageHandler = func,
 				MessageType = typeof(TMessage)
 			});
 		}
 
-		public Task QueueForExecution<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext
+		public Task QueueForExecutionAsync<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext
 		{
 			Func<Task> exeuctionFunc = () =>
 			{
@@ -52,14 +53,14 @@ namespace RawRabbit.Extensions.Transaction.Repository
 
 				if (handler == null)
 				{
-					return _completed;
+					throw new ArgumentException($"No handler for message {typeof(TMessage).Name}.");
 				}
 				_state.Completed.Add(new ExecutionResult
 				{
 					Time = DateTime.Now,
 					MessageType = handler.MessageType
 				});
-				foreach (var skipped in potentialHandlers.TakeWhile(h => h == handler).Except(new[] { handler }))
+				foreach (var skipped in potentialHandlers.TakeWhile(h => h != handler).Except(new[] { handler }))
 				{
 					_state.Skipped.Add(new ExecutionResult
 					{
