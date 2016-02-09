@@ -12,8 +12,8 @@ namespace RawRabbit.Extensions.Transaction.Repository
 		private readonly List<ExecutionHandlerContainer> _handlers;
 		private readonly Task _completed = Task.FromResult(true);
 		private readonly TransactionState _state;
-		private readonly Queue<Func<Task>> _executionQueue;
-		private TaskCompletionSource<bool> _executingTcs;
+		private readonly Queue<Func<Task<ExecutionFlow>>> _executionQueue;
+		private TaskCompletionSource<ExecutionFlow> _executingTcs;
 		private bool _isConsuming;
 		private static readonly object Padlock = new object();
 		 
@@ -21,7 +21,7 @@ namespace RawRabbit.Extensions.Transaction.Repository
 		{
 			_state = new TransactionState();
 			_handlers = new List<ExecutionHandlerContainer>();
-			_executionQueue = new Queue<Func<Task>>();
+			_executionQueue = new Queue<Func<Task<ExecutionFlow>>>();
 		}
 		public bool IsRegistered<TMessage>()
 		{
@@ -44,9 +44,9 @@ namespace RawRabbit.Extensions.Transaction.Repository
 			});
 		}
 
-		public Task QueueForExecutionAsync<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext
+		public Task<ExecutionFlow> QueueForExecutionAsync<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext
 		{
-			Func<Task> exeuctionFunc = () =>
+			Func<Task<ExecutionFlow>> exeuctionFunc = () =>
 			{
 				var potentialHandlers = GetPotentalHandlers();
 				var handler = potentialHandlers.FirstOrDefault(h => h.MessageType == typeof(TMessage));
@@ -69,14 +69,17 @@ namespace RawRabbit.Extensions.Transaction.Repository
 					});
 				}
 				var handlerFunc = handler.MessageHandler as Func<TMessage, TMessageContext, Task>;
-				return handlerFunc?.Invoke(message, context) ?? _completed;
+				return handlerFunc?
+					.Invoke(message, context)
+					.ContinueWith(t => handler.AbortsExecution ? ExecutionFlow.Abort : ExecutionFlow.Continue)
+					?? Task.FromResult(ExecutionFlow.Unknown);
 			};
 			_executionQueue.Enqueue(exeuctionFunc);
 			
 			return EnsureQueueExecution();
 		}
 
-		private Task EnsureQueueExecution()
+		private Task<ExecutionFlow> EnsureQueueExecution()
 		{
 			if (_isConsuming)
 			{
@@ -85,16 +88,22 @@ namespace RawRabbit.Extensions.Transaction.Repository
 			lock (Padlock)
 			{
 				_isConsuming = true;
-				_executingTcs = new TaskCompletionSource<bool>();
+				_executingTcs = new TaskCompletionSource<ExecutionFlow>();
 			}
 			while (_executionQueue.Any())
 			{
-				_executionQueue.Dequeue().Invoke().Wait();
+				var executionTask = _executionQueue.Dequeue().Invoke();
+				executionTask.Wait();
+				if (executionTask.Result == ExecutionFlow.Abort)
+				{
+					_executionQueue.Clear();
+					return Task.FromResult(ExecutionFlow.Abort);
+				}
 			}
 			lock (Padlock)
 			{
 				_isConsuming = false;
-				_executingTcs.TrySetResult(true);
+				_executingTcs.TrySetResult(ExecutionFlow.Continue);
 			}
 			return _executingTcs.Task;
 		}
@@ -130,5 +139,9 @@ namespace RawRabbit.Extensions.Transaction.Repository
 			}
 			return potentialHandlers;
 		}
+	}
+	public  enum ExecutionFlow
+	{
+		Unknown, Continue, Abort
 	}
 }

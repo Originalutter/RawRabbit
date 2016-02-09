@@ -6,5 +6,6 @@ namespace RawRabbit.Extensions.Transaction.Model
 	{
 		public Task<TCompleteType> Task { get; set; }
 		public TransactionState State { get; set; }
+		public bool Aborted { get; set; }
 	}
 }

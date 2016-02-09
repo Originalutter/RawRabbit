@@ -9,7 +9,7 @@ namespace RawRabbit.Extensions.Transaction.Repository
 	{
 		bool IsRegistered<TMessage>();
 		void Register<TMessage, TMessageContext>(Func<TMessage, TMessageContext, Task> func, ExecutionOption option) where TMessageContext : IMessageContext;
-		Task QueueForExecutionAsync<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext;
+		Task<ExecutionFlow> QueueForExecutionAsync<TMessage, TMessageContext>(TMessage message, TMessageContext context) where TMessageContext : IMessageContext;
 		TransactionState GetState(Guid globalMessageId);
 	}
 }

@@ -108,5 +108,36 @@ namespace RawRabbit.IntegrationTests.Extensions
 			/* Assert */
 			Assert.False(thirdCalled);
 		}
+
+		[Fact]
+		public async Task Should_Not_Call_Subsequent_Message_Handlers_If_Aborted()
+		{
+			/* Setup */
+			var normal = BusClientFactory.CreateDefault();
+			var extended = RawRabbitFactory.GetExtendableClient() as ExtendableBusClient;
+			var thirdCalled = false;
+
+			normal.SubscribeAsync<FirstMessage>((msg, ctx) => normal.PublishAsync(new SecondMessage(), ctx.GlobalRequestId));
+			normal.SubscribeAsync<SecondMessage>((msg, ctx) => normal.PublishAsync(new ThirdMessage(), ctx.GlobalRequestId));
+
+			/* Test */
+			var transaction = extended.PerformTransaction(cfg => cfg
+				.PublishAsync<FirstMessage>()
+				.When<SecondMessage>((msg, ctx) =>
+				{
+					return Task.FromResult(true);
+				}, it => it.AbortsExecution())
+				.Complete<ThirdMessage>((msg, ctx) =>
+				{
+					thirdCalled = true;
+					return Task.FromResult(true);
+				})
+			);
+			await transaction.Task;
+
+			/* Assert */
+			Assert.False(thirdCalled);
+			Assert.True(transaction.Aborted);
+		}
 	}
 }

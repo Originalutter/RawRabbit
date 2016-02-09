@@ -21,6 +21,7 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 		private readonly List<string> _transactionQueues;
 		private Guid _globalMessageId;
 		private Action _publishAction;
+		private Action _abortAction;
 		private Action<ISubscriptionConfigurationBuilder> _transactionConfig;
 
 		public TransactionBuilder(ExtendableBusClient<TMessageContext> client, ITransactionHandler transactionHandler)
@@ -62,10 +63,22 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 				throw new ArgumentException("Complete message type is allready registered.");
 			}
 
-			var msgTsc = new TaskCompletionSource<TMessage>();
+			var msgTcs = new TaskCompletionSource<TMessage>();
+			var transaction = new Transaction<TMessage>
+			{
+				Task = msgTcs.Task,
+				State = _transactionHandler.GetState(_globalMessageId)
+			};
+
+			_abortAction = () =>
+			{
+				transaction.Aborted = true;
+				msgTcs.TrySetResult(default(TMessage));
+			};
+
 			WireUpMessageHandler(func, new ExecutionOption(), (message, context) =>
 			{
-				msgTsc.TrySetResult(message);
+				msgTcs.TrySetResult(message);
 				using (var channel = _client.GetService<IChannelFactory>().CreateChannel())
 				{
 					foreach (var queue in _transactionQueues)
@@ -75,12 +88,9 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 				}
 				return _completed;
 			});
+
 			_publishAction();
-			return new Transaction<TMessage>
-			{
-				Task = msgTsc.Task,
-				State = _transactionHandler.GetState(_globalMessageId)
-			};
+			return transaction;
 		}
 
 		protected void WireUpMessageHandler<TMessage>(Func<TMessage, TMessageContext, Task> userFunc, ExecutionOption option, Func<TMessage, TMessageContext, Task> extraFunc = null)
@@ -102,13 +112,18 @@ namespace RawRabbit.Extensions.Transaction.Configuration
 							{
 								return _completed;
 							}
+							if (t.Result == ExecutionFlow.Abort)
+							{
+								_abortAction();
+								return _completed;
+							}
 							return extraFunc?.Invoke(msg, ctx) ?? _completed;
 						});
 
 				}, _transactionConfig);
 				_transactionQueues.Add(_configEvaluator.GetConfiguration<TMessage>(_transactionConfig).Queue.FullQueueName);
 			}
-			
+
 			if (userFunc != null)
 			{
 				_transactionHandler.Register(userFunc, option);
